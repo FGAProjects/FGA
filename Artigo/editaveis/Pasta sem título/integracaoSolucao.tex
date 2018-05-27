@@ -1,0 +1,23 @@
+Para a melhor visualização do funcionamento integrado do SUM, apresenta-se uma situação hipotética de atividade suspeita na (Figura \ref{img:integracao}). A figura descreve a sequência de operação do SUM, desde o reconhecimento da atividade suspeita até o acionamento da segurança.
+
+\begin{figure}[H]
+	\centering
+	\caption{Ilustração de situação de risco e funcionamento do SUM.}
+	\includegraphics[width=0.8\textwidth]{figuras/integracao}
+	\label{img:integracao}
+\end{figure}
+
+A imagem está enumerada de acordo a seguinte sequência de cenas:
+
+\begin{enumerate}
+	\item Um indivíduo estaciona próximo ao prédio e, juntamente com seu filho, caminha em direção à entrada deste. Ao chegarem perto da entrada, uma pessoa começa a se aproximar de seu carro. Ela espera até que entrem no prédio e então permanece ali durante o período de 5 minutos.
+
+	\item As câmeras, contidas nos balões próximos ao carro, captarão estas imagens que, em seguida, serão passadas por um processamento de imagens, executados pelo sistema eletrônico presente no \textit{Payload} (suspenso pelo balão). Nesta fase de processamento de sinais, as câmeras direcionarão suas imagens para o Raspberry PI (microcontrolador responsável pelo processamento de imagens), através do seu conector específico para câmera.
+	Este conterá um algoritmo que realizará a compressão dos vídeos enviados, no padrão H264, um padrão de codificação de vídeo de última geração que utiliza um quadro de referência para comparação e codifica apenas os pixels que foram modificados. Após realizar esse processo de compressão, o Raspberry, que estará conectado ao Arduino, receberá os dados dos sensores e a interpretação feita pelo algoritmo implementado no microcontrolador. Caso a interpretação do algoritmo informe determinada anomalia no sistema e exija que esse seja estabilizado, o Raspberry comunicará ao Galileo, via comunicação serial, que realize a estabilização do sistema.
+
+	\item Com as imagens e os dados dos sensores obtidos, o Raspberry transmitirá essas informações em tempo real para o balão mais próximo da central, a comunicação entre eles será sem fio, montando uma rede intranet.
+
+	\item O balão, que estará recebendo essas informações, transmitirá para a central (container) através de um cabo de \textit{Ethernet} e o computador que receber tais informações realizará todo o procedimento necessário com as imagens.
+	
+	\item Com estas imagens e os dados dos sensores transmitidos, será realizado o reconhecimento da situação em questão e será verificado o funcionamento do sistema. A estação de solo possuirá um conjunto de monitores e um monitor central. Após a transmissão das informações, serão emitidos alertas no monitor central, onde o operador irá averiguar a situação e, caso seja necessário, informar a segurança do Campus via rádio. O segurança do Campus irá até o local e verificará a situação, tendo como função informar às autoridades responsáveis pelo Campus.
+\end{enumerate}

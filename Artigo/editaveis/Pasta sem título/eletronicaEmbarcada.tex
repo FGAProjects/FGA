@@ -1,0 +1,605 @@
+	Problema: O sistema de monitoramento SUM tem como uma de suas principais funções efetuar o reconhecimento de situações de risco e, para isso, deve-se ter uma qualidade elevada de captação de imagem. Para desempenhar esta função, faz-se necessário a utilização de uma câmera com um grande alcance e alta resolução, além de de componentes que ajudarão na estabilização da mesma. Por serem muitos fatores que podem prejudicar o bom funcionamento do nosso sistema, foram selecionados alguns sensores que auxiliarão na estabilização da Payload e por consequência na captação da imagem.
+
+	A princípio, pensou-se nos principais fatores climáticos que poderiam influenciar de maneira negativa o funcionamento do sistema e com isso foi chegada à conclusão que a velocidade do vento, pressão do ar, temperatura ambiente e do sistema e a umidade são os fatores mais determinantes. A justificativa é bem simples, com a variação repentina da velocidade do vento, o payload poderá, eventualmente, se inclinar de tal forma a perder a visualização da área a ser monitorada. Com uma variação da pressão o balão poderia perder altitude e assim, como dito anteriormente, não conseguir captar as imagens do local a ser monitorado. Com relação à temperatura, por se tratar de componentes eletrônicos, se faz necessário o conhecimento a respeito da temperatura na qual eles estão operando, visto que, em certas temperaturas, os componentes podem funcionar incorretamente, como já previsto pelo fabricante. E por ultimo, mas não menos importante, o sensor de umidade será utilizado para saber quando o balão estará funcionando ou não, uma vez que, em dias com muita umidade, o balão não funcionará.
+
+	O subprojeto de eletrônica embarcada do Payload é baseado no funcionamento de 3 microcontroladores: o Arduino UNO, o Raspberry PI 2 e o Intel Galileo Gen 2. A integração destes microcontroladores com os outros componentes está descrita na figura \ref{img:func-geral-ele}.
+
+\begin{figure}[H]
+\centering
+\caption{Funcionamento Geral Eletrônica Embarcada}
+\includegraphics[scale=0.5]{figuras/eletronica}
+\label{img:func-geral-ele}
+\end{figure}
+
+	No diagrama de funcionamento geral da eletrônica embarcada do projeto, estão presentes sensores, atuadores, câmeras e painéis de LEDs infravermelhos. A utilização destes componentes visa a qualidade na captação de imagens, sendo que cada um desempenhará um papel específico. Para garantir a qualidade na captação das imagens, o sistema SUM busca, com o uso de câmeras de alta resolução, reduzir qualquer interferência que possa prejudicar o funcionamento do sistema ou a análise de situações de risco.
+
+	Um dos problemas que poderia ser prejudicial ao sistema é a mudança brusca da orientação do Payload causada, por exemplo, por uma rajada de vento. Essa mudança brusca pode mudar a direção para qual a câmera estava focando, causando a perda de cenas que, possivelmente, possam ser necessárias para uma análise de risco.
+
+	Visando a garantia de que esse possível problema não venha interferir no funcionamento do sistema, tornou-se necessário o desenvolvimento de um sistema de estabilização do Payload. Neste sistema, estarão presentes os seguintes sensores  inerciais: LM35(Temperatura), HMC5883L(Bússola), L3G4200D(movimento), ADXL345(acelerometro), BMP180(pressão) e DHT11(umidade). Estes sensores estarão conectados ao Arduino UNO que, por sua vez, interpretará estes dados e enviará essas informações para o Raspberry PI, por meio de uma comunicação serial.
+
+	O Raspberry também estará conectado ao Aweek, um painel composto por vários LEDs para iluminação em infravermelho. Por fim, O Raspberry PI enviará informações para o microcontrolador Intel Galileo Gen 2, indicando a necessidade de estabilização da estrutura, de acordo com a interpretação feita pelo Arduino. Caso seja necessária a estabilização, o Galileo decidirá se ativará um motor de passo para realizar a estabilização através do trilho situado no payload, ou se ativará o atuador Reaction Wheel, em casos em que uma rajada de vento provoque a rotação do Payload.
+
+	Outra preocupação do nosso sistema está relacionada com a transmissão das imagens até a central de monitoramento. O Raspberry PI será o responsável por transmitir as imagens em tempo real para a central. Ele receberá os dados da câmera, através de um cabo (flat) específico para câmera a Waveshare OV5647 Night Vision, e cada balão transmitirá as informações para o balão mais próximo da central. A comunicação entre eles será sem fio, montando uma rede intranet. O balão que receberá todas as informações, as transmitirá para a central através de um cabo de Ethernet e o computador receptor realizará todo o procedimento desejado com as imagens.
+
+	A seguir será apresentado com maiores detalhes cada tópico da solução.
+
+\subsection{Microcontroladores e Microprocessadores}
+
+Os microcontroladores e microprocessadores serão responsáveis por integrar todas as atividades do sistema, seja a aquisição, armazenamento, transmissão de dados, obtidos por sensores ou câmeras, conversão de dados analógicos em digitais ou o controle do sistema. Essas atividades exigirão determinados requisitos, de acordo com a sua aplicação. Logo, vê-se a necessidade de especificar os microprocessadores e microcontroladores responsáveis por cada setor. A iniciativa de usar um microcontrolador é baseada no fato deste possuir diversos periféricos e um processador embutidos em um único circuito integrado. Esta característica minimiza o tamanho físico do projeto e facilita a implementação de várias aplicações \cite{prado2009implementaccao}.  Contudo, as CPUs dos microcontroladores são menos poderosas do que as dos microprocessadores, suas instruções, geralmente, se limitam às instruções mais simples, sua frequência de clock é menor e seu espaço de memória endereçável costuma ser menor \cite{rucinski}. Porém, estas desvantagens não interferem na viabilidade do projeto, visto que ao realizar a análise do seu custo e o comparativo entre os dois, pode-se perceber que o microprocessador possui um custo muito mais elevado, uma vez que existe a necessidade de implementação de periféricos que, geralmente, estão presentes em uma placa de um microcontrolador. Esta análise torna perceptível a escolha de microcontroladores para o projeto.
+
+Em condições desfavoráveis como, por exemplo, um fluxo de ar repentino, a rápida estabilização do balão se mostra essencial para que se mantenha o foco em determinada região da qual as imagens estão sendo captadas, visando a garantia de que não haverá perdas de cenas, o que poderia interferir no reconhecimento de situações de risco. O setor responsável pelo controle de estabilização do payload exigirá uma frequência de clock muito alta, levando em consideração que esta estabilização deverá ser realizada rapidamente. Portanto, essa função será desempenhada pelo Intel Galileo Gen 2, pois este admite frequências de clock de até 400 MHz.
+
+Para os setores de armazenamento e transmissão de imagens das câmeras, o Raspberry PI 2 foi considerado o ideal, dado sua eficiência em termos de processamento de dados. Outra vantagem de se utilizar o Raspberry é a sua compatibilidade com a linguagem Python, o que facilitará o desenvolvimento do algoritmo responsável pela compressão de vídeo.
+
+Para o setor voltado para a captação de dados dos sensores, decidiu-se que o ideal seria utilizar o Arduino UNO, visto que este possui grande compatibilidade com os shields escolhidos e seu ambiente de desenvolvimento (IDE) também é compatível com o Intel Galileo Gen 2, o que facilitará a codificação do mesmo, além de uma quantidade razoável de portas disponíveis.
+
+As especificações dos microcontroladores estão relacionadas na tabela \ref{table:microprocessadores}:
+
+\begin{table}[H]
+\centering
+\caption[Especificações dos microcontroladores]{Especificações dos Microcontroladores~\cite{intelGalileo},\\\cite{rsppi}, \cite{arduino}}
+\begin{tabular}{p{3cm}|p{3cm}|p{3cm}|p{3cm}|}
+\cline{2-4}
+ & Intel Galileo Gen 2 & Raspberry PI 2 & Arduino UNO \\ \hline
+\multicolumn{1}{|l|}{Microcontrolador} & \multicolumn{1}{c|}{-} & \multicolumn{1}{c|}{-} & ATmega328 \\ \hline
+\multicolumn{1}{|l|}{Processador} & SoC Quark X1000 - 32 bits & Broadcom BCM2836 SoC & \multicolumn{1}{c|}{-} \\ \hline
+\multicolumn{1}{|l|}{Arquitetura} & x86 & Quad-core ARM Cortex-A7 & \multicolumn{1}{c|}{-} \\ \hline
+\multicolumn{1}{|l|}{Memória} & DDR3 de 256 MB, SRAM embarcada de 512 KB, NOR Flash de 8 MB e EEPROM padrão de 8 KB on-board & 1 GB de RAM & 32K (0.5 usado pelo bootloader) \\ \hline
+\multicolumn{1}{|l|}{Clock} & 400 MHz & 900 MHz & 16MHz \\ \hline
+\multicolumn{1}{|l|}{GPU} & \multicolumn{1}{c|}{-} & VídeoCore IV & \multicolumn{1}{c|}{-} \\ \hline
+\multicolumn{1}{|l|}{Portas analógicas} & 6 & \multicolumn{1}{c|}{-} & 6 \\ \hline
+\multicolumn{1}{|l|}{Portas digitais} & 14 & 26 (GPIO) & 14 \\ \hline
+\multicolumn{1}{|l|}{Portas PWM} & 6 (12-bit) & \multicolumn{1}{c|}{-} & 6 \\ \hline
+\multicolumn{1}{|l|}{Tensão de operação} & 12 V & 5 V & 5 V \\ \hline
+\multicolumn{1}{|l|}{Corrente máxima} & 2 A & 1 A & 40 mA \\ \hline
+\multicolumn{1}{|l|}{Alimentação} & 7 - 15 V & 5 V & 7 -12 Vdc \\ \hline
+\multicolumn{1}{|l|}{Interface Ethernet} & 10/100 Mbps & 10/100 Mbps & \multicolumn{1}{c|}{-} \\ \hline
+\multicolumn{1}{|l|}{Saída de vídeo e Áudio} & \multicolumn{1}{c|}{-} & HDMI e Av & \multicolumn{1}{c|}{-} \\ \hline
+\end{tabular}
+\label{table:microprocessadores}
+\end{table}
+
+\subsection{Sensores}
+
+O funcionamento dos sensores utilizados no Payload está baseado na coleta de informações necessárias para a estabilização o balão. Os sensores já possuem, internamente, um conversor de sinal analógico para digital e também um filtro para reduzir ruídos. O processo de funcionamento dos sensores se inicia com a coleta de dados analógicos e então os converte para digital, logo em seguida, é realizada uma filtragem dentro do próprio sensor, visto que na etapa de coleta são adquiridos ruídos. Posteriormente, as informações são passadas para uma memória e para um bloco onde serão controladas no sistema de comunicação I2C. O sistema de comunicação I2C possibilita utilizar, em um mesmo sistema, componentes de tecnologias construtivas diferentes sem que haja incompatibilidade e nem conflitos na comunicação. A transmissão da informação entre os dispositivos é feita através de dois fios, serial data DAS e serial clock SCL.
+
+	Na figura \ref{img:funcionamentoI2c} é ilustrado o funcionamento da comunicação I2C.
+
+\begin{figure}[htp]
+	\centering
+	\caption[Exemplo de funcionamento da comunicação I2C]{Exemplo de funcionamento da comunicação I2C~\cite{microcontrolandos}}
+	\label{img:funcionamentoI2c}
+	\includegraphics[width=0.8\textwidth]{figuras/1}
+\end{figure}
+
+Os dispositivos ligados em Inter IC possuem um endereço fixo (cada componente recebe um endereço específico), e podemos configurá-los para receber ou transmitir dados; dessa maneira eles podem ser classificados de várias formas, como: mestres (MASTER), escravos (SLAVE), entre outras.
+
+Uma das vantagens do padrão I2C é que ele não fixa a velocidade de transmissão (freqüência), pois ela será determinada pelo circuito MASTER (transmissão do SCL).
+
+A seguir, será explicado o funcionamento dos sensores utilizados no Payload e serão mostrados seus respectivos diagramas funcionais.
+
+\pagebreak
+
+\begin{itemize}
+  \item Acelerômetro
+		\begin{figure}[H]
+			\centering
+			\caption{Sensor ADXL345}
+			\label{img:ADXL345}
+			\includegraphics[scale=1.5]{figuras/ADXL345}
+		\end{figure}
+
+		O acelerômetro detecta a presença ou a falta de movimento pela comparação da aceleração em qualquer eixo com limiares definido pelo usuário e também possui um sensor de queda livre que informa se o dispositivo está caindo.
+
+		Estas funções podem ser mapeadas individualmente para qualquer um dos dois pinos de saída de interrupção (INT1 OU INT2). Um sistema de memória integrado pode ser usado para armazenar dados e minimizar a atividade do processador e diminuir o consumo geral de energia do sistema. A figura \ref{img:acelerometro} descreve o seu funcionamento.
+
+		\begin{figure}[H]
+	    \centering
+	    \caption[Diagrama funcional acelerômetro ADXL345]{Diagrama funcional acelerômetro ADXL345~\cite{acelerometro}}
+	    \label{img:acelerometro}
+	    \includegraphics[width=0.8\textwidth]{figuras/2}
+	  \end{figure}
+
+\pagebreak
+
+  \item Barômetro
+		\begin{figure}[H]
+			\centering
+			\caption{Sensor BMP180}
+			\label{img:bpm180}
+			\includegraphics[scale=0.15]{figuras/bpm180}
+		\end{figure}
+
+		O BMP180 (figura \ref{img:bpm180}) consiste em um sensor piezoresistivo, um conversor AD e uma unidade de controle com E2PROM e uma interface serial I2C. O sensor entrega o valor da pressão e temperatura, o E2PROM tem armazenado 176 bits para calibração de dados que são usados para compensar o deslocamento, temperatura e outros parâmetros do sensor. O sensor é projetado para ser conectado diretamente a um microcontrolador através da comunicação I2C. O seu funcionamento está descrito na figura \ref{img:barometro}.
+
+		\begin{figure}[H]
+	    \centering
+	    \caption[Diagrama funcional Barômetro BMP085]{Diagrama funcional Barômetro BMP085~\cite{barometro}}
+	    \label{img:barometro}
+	    \includegraphics[width=0.7\textwidth]{figuras/3}
+	  \end{figure}
+	  
+\pagebreak
+
+  \item Giroscópio
+
+		\begin{figure}[H]
+			\centering
+			\caption{Sensor L3G4200D}
+			\label{img:L3G4200D}
+			\includegraphics[scale=0.25]{figuras/L3G4200D}
+		\end{figure}
+
+		O L3G4200D (figura \ref{img:L3G4200D}) é um sensor de velocidade angular de três eixos de baixa potência capaz de proporcionar estabilidade e sensibilidade sobre a temperatura e tempo. Inclui uma interface IC capaz de proporcionar a velocidade angular medida para o mundo exterior através de uma interface digital (I2C ou SPI) Essa interface IC é fabricada usando um processo CMOS que permite um nível elevado de integração para a criação de um circuito. O seu funcionamento pode ser visualizado na figura \ref{img:giroscopio}.
+
+	  \begin{figure}[H]
+	    \centering
+	    \caption[Diagrama Funcional Giroscópio L3G4200D]{Diagrama Funcional Giroscópio L3G4200D~\cite{giroscopio}}
+	    \label{img:giroscopio}
+	    \includegraphics[width=0.7\textwidth]{figuras/4}
+	  \end{figure}
+
+\pagebreak
+
+  \item Magnetômetro
+
+		\begin{figure}[H]
+			\centering
+			\caption{Sensor HMC5883L}
+			\label{img:HMC5883L}
+			\includegraphics[scale=0.2]{figuras/HMC5883L}
+		\end{figure}
+
+		O HMC5883L (figura \ref{img:HMC5883L}) é um composto por um trio de sensores e circuitos de suporte para aplicações específicas para medir campos magnéticos. Com uma fonte de alimentação aplicada, o sensor converte qualquer campo magnético incidente nas direções dos eixos sensíveis a uma saída de tensão diferencial. A figura \ref{img:magnetometro} descreve seu funcionamento.
+
+	  \begin{figure}[H]
+	    \centering
+	    \caption[Diagrama funcional magnetômetro HMC5883L]{Diagrama funcional magnetômetro HMC5883L~\cite{magnetometro}}
+	    \label{img:magnetometro}
+	    \includegraphics[width=0.8\textwidth]{figuras/6}
+	  \end{figure}
+	  
+\pagebreak
+
+  \item Sensor de umidade
+
+		\begin{figure}[H]
+			\centering
+			\caption{Sensor DHT11}
+			\label{img:DHT11}
+			\includegraphics[scale=0.6]{figuras/DHT11}
+		\end{figure}
+
+		O DHT11 (figura \ref{img:DHT11}) é um sensor que permite fazer a leitura da umidade entre 20 a 90\% e também de temperatura, e pode ser utilizado juntamente com arduinos. É alimentado com tensão de 3.5V e corrente de 200$\mu$A, possui tempo de resposta de 2 segundos, precisão de medição de umidade de mais ou menos 5.0\% UR e tem dimensões de 23 x 12 x 5 mm. A figura \ref{img:sensorumidade} descreve seu funcionamento.
+
+	  \begin{figure}[H]
+	    \centering
+	    \caption[Diagrama funcional sensor de umidade]{Diagrama funcional sensor de umidade~\cite{sensorhumidade}}
+	    \label{img:sensorumidade}
+	    \includegraphics[width=0.8\textwidth]{figuras/5}
+	  \end{figure}
+\end{itemize}
+
+Geralmente, os microcontroladores processam os dados obtidos por sensores e em suas saídas são encontrados valores analógicos, logo é necessário transformá-los em valores digitais. Para executar essa atividade, é preciso do conversor A/D, que inter-faceiam os dispositivos de medidas e o microcontrolador. Nesses conversores, quanto maior o número bits de saída, melhor ele será. Por exemplo, um conversor que tem uma saída de quatro bits possui dezesseis degraus de indicação, ou seja, pode definir uma escala de dezesseis valores diferentes. Se o circuito converte sinais na faixa de 0V a 1V, é preciso ter cuidado para que os sensores usados trabalhem nessa faixa. Um amplificador operacional pode ter um ganho programado para evitar esses problemas. Então, as saídas terão um número n de pinos nas quais as saídas nos níveis lógicos 0 ou 1 são obtidos conforme a tensão de entrada.
+
+Como já mencionado anteriormente, a conversão de dados analógicos para digitais será realizada internamente nos sensores, esta característica pode ser visualizada em seus respectivos diagramas funcionais. Isto significa que os sensores fornecerão valores digitais em suas saídas, que estarão conectadas ao microcontrolador Arduino UNO.
+
+\subsection{Sistemas de Câmeras}
+
+Cada balão portará 1 câmera direcionada para a região em que se efetuará a monitoração. A câmera escolhida foi a Waveshare OV5647 Night Vision, com as especificações técnicas presentes nos itens abaixo e nas imagens \ref{img:Waveshare} e \ref{img:painel}.
+
+\begin{itemize}
+	\item 5MP.
+	\item Vídeo: 1080 p.
+	\item Abertura (F): 2.9
+	\item Distância Focal: 3.29 mm.
+	\item Diagonal: 72.4 mm.
+	\item Dimensões: 25 mm x 24 mm x 6 mm.
+	\item Suporta até 2 LEDs infra-vermelhos.
+	\item Massa: $1.7 \cdot 10^{-2}$ kg.
+	\item Preço: U\$30.99.
+\end{itemize}
+
+\begin{figure}[H]
+  \centering
+  \caption[Waveshare OV5647 Night Vision em destaque]{Waveshare OV5647 Night Vision em destaque~\cite{amazon1}}
+  \label{img:Waveshare}
+  \includegraphics[width=0.8\textwidth]{figuras/RSP}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \caption[Painel infra-vermelho]{Painel infra-vermelho~\cite{amazon2}}
+  \label{img:painel}
+  \includegraphics[scale=0.7]{figuras/painel}
+\end{figure}
+
+A câmera foi escolhida dada a sua alta resolução, fácil interface com o Raspberry PI, o sensor ser adequado para ser utilizado com o infravermelho para filmagens noturnas. Além disso, possui dimensões pequenas. O fabricante não informa o alcance do infravermelho para filmagens noturnas, dessa forma faz-se necessária a utilização conjunta com  câmera de um painél infravermelho externo. O painel escolhido é denominado: Aweek 850 nm, 60 LEDs IR com especificações:
+
+\begin{itemize}
+	\item Comprimento de onda: 850 nm.
+	\item Consumo: 12 W.
+	\item Tensão de operação: 12 VDC.
+	\item Alcance: 60 m.
+	\item Massa: 0.5 kg.
+	\item Preço: U\$27.88.
+\end{itemize}
+
+As câmeras serão fixadas ao balão, e por estarem acondicionadas em seus respectivos invólucros (caixas de proteção) deverão continuar operando perfeitamente sob temperatura ambiente
+entre 0 e 40$^{\circ}$C e umidade relativa do ar de até 90\%.
+
+\subsection{Estabilização da Carga útil}
+
+Embora que a princípio o balão trabalhará com altitude fixa, este tem o grau de liberdade para mudar de orientação em torno dos eixos ZB, YB e XB (considera-se o sistema de referência Body Axes), figura \ref{img:eixosreferencia}. O sistema de referência nos eixos do corpo tem origem geralmente no centro de massa, e utilizada para referenciar aeronaves, neste caso será aplicado à payload do balão. Estas mudanças de orientação ocasionarão a rotações involuntárias de câmeras embarcadas no balão, dessa forma faz-se necessária a estabilização do movimento.
+
+\begin{figure}[H]
+  \centering
+  \caption{Eixos de referência em destaque.}
+  \label{img:eixosreferencia}
+  \includegraphics[width=0.8\textwidth]{figuras/estrutura}
+\end{figure}
+
+Tal movimento de rotação pode ser induzido pelas forças aerodinâmicas que agem no balão quando o fluxo de ar faz-se presente. O sistema de controle que seria capaz de estabilizar o sistema frente a uma perturbação seria classificado como de malha fechada, isso significa que um conjunto de sensores inerciais (acelerômetro, giroscópio) deve ser empregado para além de detectar a perturbação, verificar se o sistema de controle está sendo efetivo. Dessa forma o sistema de controle de malha fechada verifica se a saída condiz com as especificações de estabilidade do sistema, para se ter certeza de que a estabilização está sendo feita. O sistema de controle atuaria de forma intermitente enquanto a estabilização não fosse bem sucedida. Para fins de viabilidade, o sistema de controle empregado deve ser capaz de estabilizar a payload (setor de equipamentos embarcados) rapidamente, para se ter qualidade nas imagens geradas pela câmera.
+
+Um provável atuador para o eixo ZB, ou seja, mecanismo capaz de efetuar a estabilização seria um Reaction Wheel. Um Reaction Wheel é um dispositivo frequentemente utilizado para o controle de atitude de satélites, consiste de um disco massivo acoplado a um eixo giratório. O princípio que o dispositivo usa para efetuar a estabilização é o momento de inércia do disco, dependendo da interpretação do algoritmo de controle das leituras dos sensores, sua rotação é ativada com velocidade e sentido determinados, executando-se a estabilização (anula a rotação da payload do balão no eixo). Tal atuador se encontrará no interior da payload. Como o Reaction Wheel, geralmente, é projetado para atuar no ambiente espacial, seu custo costuma ser bem elevado, na ordem de milhares de dólares. Como a carga útil não enfrentará condições similares ao espaço, não há a necessidade da compra de um modelo qualificado para o espaço, dessa forma é possível se optar pelo desenvolvimento do atuador. Os componentes para o desenvolvimento do Reaction Wheel são os seguintes:
+
+	\begin{itemize}
+		\item Tarugo de Alumínio (cilindro de alumínio usinável) (figura \ref{img:tarugo}).
+
+			\begin{figure}[H]
+			  \centering
+			  \caption{Tarugo de Alumínio.}
+			  \label{img:tarugo}
+			  \includegraphics[width=0.8\textwidth]{figuras/tarugo}
+			\end{figure}
+
+			Seria utilizado para a fabricação do disco maciço. A massa e o diâmetro corretos desse disco dependeriam de uma pesquisa cientifica efetuada com a payload.
+
+			Preço: para a dimensão de 8cm (diâmetro) e 4 cm de altura o preço varia de R\$150,00 à R\$350,00.
+
+		\item Impressão 3D.
+
+			Seria utilizada para a fabricação do envoltório do dispositivo.
+
+			Preço: estima-se entre R\$100 e R\$250
+
+		\item Arduíno Nano (figura \ref{img:arduinoNano})
+
+			\begin{figure}[H]
+				\centering
+				\caption{Arduíno Nano V3.0}
+				\label{img:arduinoNano}
+				\includegraphics[width=0.8\textwidth]{figuras/arduinoNano}
+			\end{figure}
+
+			Seria utilizado para efetuar o controle da velocidade de rotação,por meio do driver para o motor.
+
+			Preço: Flipeflop R\$59.90, frete não incluso ; Multilógica R\$269.00, frete não incluso; Hobbyking R\$25,77; frete não incluso.
+
+		\item Fios.
+
+			Preço: estima-se em um total de R\$25,00.
+
+		\item Conectores.
+
+			Preço: estima-se em um total de R\$50,00.
+
+		\item Motor (figura \ref{img:motorAK})
+
+			\begin{figure}[H]
+				\centering
+				\caption{Motor de Passo NEMA 23, modelo AK23/21F8FN1}
+				\label{img:motorAK}
+				\includegraphics[width=0.4\textwidth]{figuras/motorAK}
+			\end{figure}
+
+			Seu eixo estaria acoplado ao disco maciço de alumínio.
+
+			O motor especificado, modelo AK23/21F8FN1, consome 2.8A, necessita de uma tensão de 3.36Vdc e torque de 21 kgf.cm.
+
+			Preço: R\$309,00.
+
+		\item Driver para motor de passo.
+
+			O  driver escolhido e que se adequa ao motor utilizado é o SparkFun AutoDriver - Stepper Motor Driver. O mesmo modelo também será utilizado para efetuar o controle do trilho do balão, portanto suas especificações serão listadas posteriormente.
+	\end{itemize}
+
+Para a estabilização do eixo YB pode ser utilizado um trilho para mover a posição da bexiga, alterando o ângulo de pitch, de forma a nivelar o plano seccional horizontal da payload com o solo. Tal trilho está indicado na estrutura conceitual da payload, figura \ref{img:trilhoestrutura}.
+
+\begin{figure}[H]
+  \centering
+  \caption{Trilho em destaque na estrutura conceitual da payload.}
+  \label{img:trilhoestrutura}
+  \includegraphics[width=0.6\textwidth]{figuras/e2}
+\end{figure}
+
+No caso o eixo XB, a estabilização pode ser feita através da variação da altitude do balão em intervalos de distância pré-definidos. Essa variação da altitude pode ser feita através da retração e liberação do cabo na carretilha em solo. A instabilidade no eixo ZB não afetará significativamente a qualidade da imagem, desde que a estabilização nos outros dois eixos seja efetiva.
+
+Uma provável automação efetuada pelo balão será a avaliação de sua própria segurança. Por meio de sensores de tensão no cabo (dinamômetro) preso na estrutura da figura \ref{img:caboancoragem}, se esta aumentar acima de um nível critico, este será automaticamente recolhido por meio do rotor motorizado em solo, e a estação de solo será informada. Assim que o sensor em solo sinalizar normalidade na velocidade do vento este será novamente elevado.
+
+\begin{figure}[H]
+  \centering
+  \caption{Conexão com cabo de ancoragem em destaque.}
+  \label{img:caboancoragem}
+  \includegraphics[width=0.8\textwidth]{figuras/e3}
+\end{figure}
+
+
+Mais uma automação essencial será a sua elevação e retração automática para o período de monitoração determinada.
+
+O funcionamento completo do sistema de estabilização se dará da seguinte forma: quando o sistema aéreo é ativado, ocorrerá a auto-orientação da carga útil (payload). Tal auto-orientação buscará direcionar a câmera para uma dada região pré determinada. Posteriormente, qualquer perturbação que gere alteração da atitude (orientação) da carga útil deverá ser corrigida pelos atuadores, isto é, Reaction Wheel e trilho.
+
+O reaction wheel comercial que pode ser utilizado é o da companhia Clyde Space. A tabela \ref{tab:reactionWheel} mostra as especificações técnicas do reaction wheel.
+
+\begin{table}[H]
+	\centering
+  \caption[Especificação do Reaction Wheel]{Especificação do Reaction Wheel~\cite{clyde}}
+	\begin{tabular}{|l|c|c|l|}
+	\hline
+	\rowcolor[HTML]{C0C0C0}
+	\textbf{Característica}          & \textbf{Valor} & \textbf{Unidades} & \textbf{Notas}        \\ \hline
+	Máxima velocidade volante        & 66500          & rpm               & @28 V                 \\ \hline
+	Torque máximo à 6500 rpm         & 26             & mNm               & @28 V                 \\ \hline
+	Torque máximo até 2500 rpm       & 40             & mNm               & @28 V                 \\ \hline
+	Faixa de temperatura em operação & -20 a 50       & ºC                & \multicolumn{1}{|c|}{-} \\ \hline
+	Faixa de temperatura em repouso  & -30 a 60       & ºC                & \multicolumn{1}{|c|}{-} \\ \hline
+	Consumo quando inativo           & 1.5            & W                 & @28 V                 \\ \hline
+	Consumo sem carga                & \textless 12   & W                 & @28 V                 \\ \hline
+	Consumo em torque máximo         & \textless 28   & W                 & @28 V                 \\ \hline
+	Inércia do disco                 & 0.001766969    & kg*$m^{2}$        & \multicolumn{1}{|c|}{-} \\ \hline
+	Massa total do dispositivo       & 1.5            & Kg                & \multicolumn{1}{|c|}{-} \\ \hline
+	\end{tabular}
+	\label{tab:reactionWheel}
+\end{table}
+
+Para fazer a bexiga se locomover no trilho, faz-se necessária a utilização de um motor de passo. O motor escolhido foi o de modelo AK23/R100F6FN1.8-G10-LINIX com caixa de redução, devido ao torque, dimensões e consumo. Exemplo disponível na imagem \ref{img:motorpasso}.
+
+\begin{figure}[H]
+  \centering
+  \caption[Motor de Passo AK23/R100F6FN1.8-G10-LINIX]{Motor de Passo AK23/R100F6FN1.8-G10-LINIX~\cite{robocore}}
+  \label{img:motorpasso}
+  \includegraphics[width=0.8\textwidth]{figuras/M}
+\end{figure}
+
+Dados técnicos do motor:
+
+\begin{itemize}
+	\item Tensão: 2.4 VDC.
+	\item Corrente: 3 A.
+	\item NEMA: 23.
+	\item Folga: a folga do redutor é de 30 arcminutos (0.5 graus).
+	\item Marca: LINIX.
+	\item Preço: R\$359.00.
+\end{itemize}
+
+Para ser controlado, esse motor requer um driver, o modelo escolhido, por se adequar as especificações técnicas do motor foi o SparkFun AutoDriver - Stepper Motor Driver com as seguintes especificações~\cite{pololu}:
+
+\begin{itemize}
+	\item Detecção de superaquecimento.
+	\item Deterção de excesso de corrente.
+	\item Controlado por SPI.
+	\item ADC de 5 bits.
+	\item Faixa de tensão: 8 - 45 V.
+	\item Corrente suportada: 3 A.
+	\item Preço: U\$34.95.
+\end{itemize}
+
+\subsection{Interação Hardware - Software do Payload}
+\label{sec:interacao_hard}
+
+	Serão abordados os procedimentos de programação dos controladores envolvidos no funcionamento da carga útil (payload), e também a lógica envolvida nos algoritmos a serem implementados.
+
+	\subsubsection{Arduino UNO}
+
+		O Arduino será programado através de sua IDE, que permite que sketches sejam criados e mandados para a placa. A linguagem de programação é modelada segundo a linguagem Wiring, baseada em C e C++. O código é traduzido para a linguagem C e é transmitido para o compilador, que realiza a interpretação dos comandos para uma linguagem que o microncontrolador possa entender. O esquemático dos pinos do microcontrolador e do Arduino podem ser observados na imagem \ref{img:atmega}.
+
+		Ao realizar o upload do código para a placa, o Arduino não precisa mais estar conectado ao computador. Ele executará o sketch criado, contanto que esteja conectado a uma fonte de alimentação.~\cite{embarcados1}
+
+		\begin{figure}[H]
+		  \centering
+		  \caption[Diagrama dos pinos do microcontrolador do Arduino]{Diagrama dos pinos do microcontrolador do Arduino~\cite{embarcados2}}
+		  \label{img:atmega}
+		  \includegraphics[width=1\textwidth]{figuras/ATMEGA}
+		\end{figure}
+
+		Os pinos, de entrada e saída de informações, do Arduino UNO possuirão as seguintes conexões:
+		\begin{description}
+			\item[A0 e A1:] Entrada de dados do magnetômetro HMC5883L;
+			\item[A2 e A3:] Entrada de dados do giroscópio L3G4200D;
+			\item[A4 e A5:] Entrada de dados do acelerômetro ADXL345;
+			\item[D2 e D3:] Entrada de dados do barômetro BMP085.
+		\end{description}
+
+		De acordo com a análise desses três sensores inerciais, o microcontrolador poderá comunicar-se com o Raspberry para que este informe ao Galileo e, por fim, seja ativado o sistema de estabilização do balão.
+
+		D4 e D5: Entrada de dados do sensor 1 e do sensor 2 de temperatura LM35. O sensor 1 será utilizado exclusivamente para o monitoramento do aquecimento do sistema embarcado, verificando se houve sobrecarga dos componentes. O sensor 2 captará a temperatura do gás do balão.
+
+		A comunicação entre esses sensores e o microcontrolador se dará da seguinte forma: de acordo com o dado obtido do ambiente, o sensor informará um determinado valor de tensão em seu terminal que estará conectado aos pinos de entrada de informação. O microcontrolador, de acordo com o que foi programado, relacionará este valor de tensão com o seu significado real medido pelo sensor.
+
+		O Arduino processará os dados obtidos pelos sensores e verificará se há algo anormal com sistema. Caso haja algum problema, o Arduino transmitirá essas informações para que o Raspberry PI 2 possa enviar um alerta à base de solo, tendo em vista que esses estarão conectado por uma comunicação serial. Caso o sistema não apresente comportamento inadequado, o Arduino transmitirá apenas os dados de interesse do cliente.
+
+	\subsubsection{Intel Galileo Gen 2}
+
+		Sua programação será realizada no mesmo ambiente de desenvolvimento (IDE) do Arduino. Essa placa roda o sistema operacional Linux, que vem previamente instalado, configurado e com as bibliotecas de software do Arduino, o que torna mais viável sua programação na mesma IDE.~\cite{embarcados3}
+
+		\begin{figure}[H]
+			\centering
+			\caption[Esquemático das entradas e saídas do Intel Galileo]{Esquemático das entradas e saídas do Intel Galileo~\cite{embarcados3}}
+			\label{img:galileo2}
+			\includegraphics[width=1\textwidth]{figuras/galileo2}
+		\end{figure}
+
+		O Galileo será usado exclusivamente para a estabilização do balão, estará conectado aso seguintes componentes:  ao atuador Reaction Wheel; ao motor de passo e seu driver responsável pela estabilização através do trilho; ao Raspberry PI 2. A comunicação com o Raspberry será necessária, visto que este estará conectado ao Arduino que, por sua vez, notificará qualquer mudança no sistema captada pelos sensores.
+
+		Os pinos de entrada e saída de informações do Intel Galileo Gen 2 terão as seguintes conexões:
+		\begin{description}
+			\item[IO0, IO1, IO2 e IO3:] Estarão conectados ao controlador do atuador Reaction Wheel. A mudança de estado lógico, nestas entradas, indicará que os sensores captaram mudanças climáticas que provocaram a desestabilização do balão e que o atuador será ativado.
+			\item[IO4, IO5, IO6 e IO7:] Estarão conectados ao motor de passo que realizará a estabilização através do trilho da estrutura. A mudança de estado lógico dessas entradas segue o mesmo princípio explicado no item anterior, porém estes pinos realizarão a estabilização via controle do trilho.
+		\end{description}
+
+	\subsubsection{Raspberry Pi 2}
+
+		O Raspberry PI 2 será programado em Python pois, além de sua praticidade, é o recomendado pela Fundação Raspberry Pi mas qualquer linguagem que compilar para ARMv6 (Pi 1) ou ARMv7 (Pi 2) pode ser usada. Sendo que C, C++, Java, Scratch, e Ruby já vêm previamente instalados.~\cite{raspberrypi}
+
+		O Raspberry estará conectado à câmera do balão através de seu conector específico para câmera, para a realização do processamento de imagens. Também estará conectado ao Arduino e ao Galileo, através de uma comunicação serial, a fim de transmitir os dados obtidos pelos sensores.
+
+		\begin{figure}[H]
+			\centering
+			\caption[Entradas e saídas do Raspberry Pi 2]{Entradas e saídas do Raspberry PI 2~\cite{filipeflop}}
+			\label{img:raspberryPi2}
+			\includegraphics[width=1\textwidth]{figuras/raspberryPi2}
+		\end{figure}
+
+		As conexões, do Raspberry com outros componentes, estão descritas a seguir:
+		\begin{description}
+			\item[USB1:] Comunicação serial com o Arduino. Essa conexão será dada exclusivamente para o recebimento dos dados dos sensores, assim como um alerta de anomalia no sistema.
+			\item[USB2:] Comunicação serial com o Galileo. Essa conexão será dada para o envio dos dados dos sensores que foram recebidos a fim de avisar ao sistema de estabilização que sua ativação será necessária.
+			\item[Conector Ethernet:] Realizará a comunicação com a estação do solo. Esta conexão servirá para que tanto os dados recebidos dos sensores quanto as imagens captadas pelas câmeras sejam transmitidos até a estação de solo
+			\item[Conector Câmera:] Entrada da câmera Waveshare OV5647 Night Vision. Essa conexão servirá para a comunicação entre o Raspberry e a câmera, a fim de captar os dados transmitidos e processá-los.
+		\end{description}
+
+		Os algoritmos que serão implementados terão a função de captar os valores fornecidos em determinados pinos dos microcontroladores, seja vindo diretamente do sensor ou da comunicação serial entre os microcontroladores. Em seguida, essa informação será interpretada e comparada com os valores pré-determinados. Caso os dados obtidos desrespeitem as condições impostas, o microcontrolador realizará um processo, sendo esse processo algo relacionado a autonomia do balão ou à sua comunicação com outras partes do sistema, assim como o monitoramento do seu funcionamento. Por exemplo, esse processo pode ser ativar em nível lógico alto um de seus pinos de saídas, que estarão ligados ao atuador responsável pela estabilização do balão, a fim de que este seja ligado. Esse processo também poderia ser mandar um sinal para o Raspberry para que esse possa se comunicar com a estação de solo, avisando qualquer mudança suspeita no sistema.
+
+		O Raspberry PI conterá um algoritmo que realizará a compressão dos vídeos enviados pela câmera no padrão H264.		Esse é um padrão de codificação de vídeo de última geração presente em videoconferências, bancos de dados, streaming de vídeo e TV digital, entre outros que nos permite o uso de técnicas avançadas como: esquema de previsão no qual utiliza um quadro de referência para comparação e codifica apenas os pixels que foram modificados, maior compressão de movimento, que leva em consideração que grande parte do próximo quadro pode ser encontrada no quadro anterior, porém em um lugar diferente~\cite{axis1}. A compressão de vídeo é essencial porque um vídeo em seu formato original requer muito mais espaço de armazenamento e capacidade de transmissão do que o mesmo vídeo em sua forma comprimida~\cite{ostermann}.
+
+		No campo da codificação (compressso/descompressão), o padrão H.264/AVC é um dos mais modernos padrões de codificação de vídeo~\cite{sullivan}, com uma alta taxa de compressão e diversas configurações que se ajustam a diferentes necessidades, desde o armazenamento em um disco até o streaming de vídeo~\cite{wiegand}.
+
+		À medida que a compressão se torna mais eficiente, os cálculos vão se tornando mais complexos, exigindo maior poder de processamento. Isto gera uma grande carga computacional, tornando necessário o uso de um hardware de alta capacidade para seu tratamento, o que justifica a escolha do Raspberry para o setor de processamento de imagens. Como uma forma de conseguir poder de processamento, são usadas técnicas de processamento paralelo~\cite{mattson}, na qual várias unidades de processamento trabalham em conjunto para resolver um problema. A computação paralela será utilizada na compressão do projeto, visando resolver possíveis problemas no processamento.
+
+		Um vídeo, segundo o Padrão H.264/AVC, é definido como uma sequência do mesmo em um formato particular: a sintaxe H.264/AVC. Essa sintaxe determina a estrutura precisa de uma sequência de vídeo que esteja segundo um padrão como, por exemplo, o modo de representação binária de cada elemento. A sintaxe H.264/AVC é hierárquica, sendo que o início é o seu nível mais alto, que é o nível da sequência de vídeo até o nível dos macro-blocos. Ao realizar a compressão sobre um vídeo, este se torna constituído por um fluxo de unidades NAL(Network Abstraction Layer). O SPS (Sequence Parameter Set) e o PPS (Picture Parameter Set) fazem parte da NAL, que também contém dados importantes para o decodificador. Todos os dados do vídeo serão armazenados nas unidades de tipo NAL. A sequência de vídeo é, simplesmente, um bloco NAL do tipo fatia IDR (Instantaneous Decoder Refresh) seguida por zeros ou mais NALs desse tipo~\cite{morais}. A estrutura hierárquica da sintaxe do H.264 está ilustrada na figura \ref{img:estruturah264}.
+
+		\begin{figure}[H]
+			\centering
+			\caption[Estrutura hierárquica da sintaxe do H.264]{Estrutura hierárquica da sintaxe do H.264. Adaptado de \citeauthoronline{richardson} (\citeyear{richardson})}
+			\label{img:estruturah264}
+			\includegraphics[width=1\textwidth]{figuras/h264}
+		\end{figure}
+
+	\subsection{Sistema de Telecomunicações}
+
+	O sistema de telecomunicação será usado para transmissão do vídeo e das fotos que a câmera captar. O sistema começa com a fonte de informação (câmera), dela partirá todos os dados que buscamos transmitir. Os formatos dos dados são digitais transmitidos em bits a uma velocidade dependente da câmera e do cabo que serão utilizados. Será utilizado um cabo flat para a ligação da câmera ao microcontrolador.
+
+	O cabo sairá da câmera e será ligado ao Raspberry PI 2 (mini computador), que estará sendo usado para controlar os setores de armazenamento de imagens das câmeras. O minicomputador terá instalado o GStreamer ,que é uma framework que controlará o fluxo de dados, o ideal desse sistema é que ele lida especificamente com stream multimídia, como áudio e vídeo em uma latência muito baixa.
+
+	Como pode se notar nas especificações do Raspberry PI 2, este apenas tem interface Ethernet, para termos rede necessitamos de adquirir um cabo de rede normal, mas para o caso deste projeto, não seria viável atravessar vários cabos com média de 100 metros pela universidade, então nesse caso pretendemos ligar o Raspberry PI a uma rede sem fio e por isso é necessário adquirir uma Antena Wireless Omini 8dbi Tp-link 2408cl Tl-ant2408cl 27cm para cada balão, cada uma custa R\$ 27,00~\cite{mercadolivre1} e se encontra no padrão de transmissão que oferece um alcance que precisamos e ela pode ser conectado com adaptador RP\_SMA para flat ao microcontrolador, então este componente se encontra dentro das nossas necessidades.
+
+	\begin{figure}[H]
+		\centering
+		\caption[Antena Omini]{Antena Omini~\cite{mercadolivre1}}
+		\label{img:antenaOmini}
+		\includegraphics[width=0.4\textwidth]{figuras/antena}
+	\end{figure}
+
+  Sendo postos 5 balões ao redor do campus, ligaremos via intranet, rede interna, fechada e exclusiva sem a necessita de internet, os balões 1-3 com o 4 que se encontrará mais perto da central, a conexão sem fio entre os balões é mais viável por não haver obstáculos entre eles, os dados serão passados do balão 4 via cabo ethernet ate a central, por volta de 60 metros, pois esse estágio da comunicação pode ser encontrado obstáculos físicos para a transmissão, como exemplo carros, arvores, paredes, então a utilização do cabo pode diminuir a perda ou as interferências nos sinais. O mapa do campus com as posições dos balões pode ser observado na imagem \ref{img:campusPosicaoCam}.
+
+  \begin{figure}[H]
+    \centering
+    \caption[Mapa do Campus com as posições dos balões]{Mapa do Campus com as posições dos balões~\cite{mapa1}}
+    \label{img:campusPosicaoCam}
+    \includegraphics[width=0.6\textwidth]{figuras/localizacao-baloes}
+  \end{figure}
+
+	Caso se queira realizar a transmissão para mais de um computador, será feito um switch, que possui um exemplo na imagem \ref{img:antenaOmini}. A função do switch é encaminhar dados de um dispositivo para outro dentro uma mesma rede. “Ele registra os endereços MAC (Controle de Acesso à Mídia) de todos os dispositivos conectados a ele. (Cada dispositivo de rede tem um endereço MAC exclusivo, que consiste em uma série de números e letras definidos pelo fabricante, e o endereço pode ser muitas vezes encontrado na etiqueta do produto). Quando um switch recebe dado, ele os encaminha apenas à porta que estiver conectada a um dispositivo com o endereço MAC correto do destino.”~\cite{axis2}.
+
+	\begin{figure}[H]
+		\centering
+		\caption[Exemplo de Switch]{Exemplo de Switch~\cite{axis2}}
+		\label{img:antenaOmini}
+		\includegraphics[width=0.6\textwidth]{figuras/switch}
+	\end{figure}
+
+	Com um switch de rede, a transferência de dados é gerenciada de maneira muito eficiente, pois o tráfego de dados pode ser direcionado de um dispositivo para outro sem afetar nenhuma outra porta do switch.~\cite{axis2}
+
+	A central mostrará o que se passa na câmera em tempo real, mas também será possível guardar momentos programados para um analise futura. As configurações, alterações e analises serão todas realizadas por softwares específicos.
+
+	\subsection{Manutenção}
+
+		O Balão Cativo funcionará vinte e quatro horas por dia durante os sete dias das semanas. Dito isso, a manutenção do sistema deve ser realizadas frequentemente a fim de corrigir ou evitar paradas duradouras de funcionamento . Alguns passos devem ser tomados quando houver esse tipo de procedimento. O sistema terá dois tipos de manutenção: a corretiva e a preventiva.
+
+		Manutenção Corretiva: Quando o equipamento quebrar ou deixar de funcionar, o profissional responsável será chamado para resolver a questão. Esses casos acontecerão raramente, mas é preciso ter bastante cuidado nessas ocasiões, pois a manutenção durará vinte e quatro horas, caso o problema seja de fácil resolução e setenta e duas horas, caso seja um problema de difícil resolução ou a peça defeituosa seja de difícil aquisição.
+
+		Manutenção Preventiva: A cada semana, um balão receberá vistoria dos técnicos. Os componentes e conexões serão reavaliados para analisar o desempenho e observar se está dentro do esperado. Esse tipo de manutenção evitará que todos sejam pegos de surpresa, além de evitar maiores defeitos dos equipamentos. Isso culminará num menor número de manutenção corretiva e, consequentemente, menos dinheiro desembolsado.
+		Esse tipo de manutenção irá durar cerca de trinta minutos para cada balão.
+
+		Além disso, um caminho mais seguro pode ser a melhor solução. Quando um dos balões estiverem em manutenção, a equipe deve ter um balão reserva, tendo a mesma função do step nos carros. Dessa maneira, quando o balão for retirado para a manutenção, outro será colocado no local para manter a segurança do estacionamento. Caso o balão reserva esteja com defeito, as seguintes providencias deverão ser tomadas:
+
+		\begin{enumerate}
+				\item Quando o balão estiver com problemas, os seguranças serão acionados e deverão cuidar do local enquanto o balão estiver inativo;
+				\item As autoridades responsáveis pelo campus receberão um aviso de que deverão reforçar a segurança do Campus nesse período;
+				\item Os alunos, professores e funcionários serão alertados, na entrada do estacionamento, para tomarem maior cuidado.~\cite{resolvemicro}
+		\end{enumerate}
+
+
+		\subsection{Peso, Consumo e Custo dos Componentes do \textit{PayLoad}} % (fold)
+		\label{sub:peso_e_custo}
+
+		  Inicialmente, foi realizado o compativo entre orçamentos com possíveis fornecedores, visando obter um projeto mais viável.
+		  O levantamento destes custo é apresentado na seguinte Tabela Comparativa \ref{tab:CompCusto}.
+
+\begin{table}[H]
+  \scalefont{1}
+    \centering
+    \caption{Tabela comparativa de custos dos componentes eletrônicos.}
+    \begin{tabular}{|c|c|c|c|}
+      \hline
+      \cellcolor[HTML]{FFFFFF}{\color[HTML]{000000} \textbf{Componente}} & \textbf{Orçamento 1} & \textbf{Orçamento 2} & \cellcolor[HTML]{FFFFFF}{\color[HTML]{000000} \textbf{Orçamento 3}} \\ \hline
+      Sensor LM35                                                        & R\$ 14,89        & R\$ 7,50			      & R\$ 13,45                                                          \\ \hline
+      Giroscópio L3G4200D                                                & R\$ 23,32        & R\$ 28,23		              & R\$ 43,26                                                         \\ \hline
+      Sensor DHT11                                                       & R\$ 10,28        & R\$ 12,61			      & R\$ 13,78                                                         \\ \hline
+      Raspbarry PI                                                       & R\$ 129,44       & R\$ 143,20		      & \$ 32,64 = R\$ 127,28                                               \\ \hline
+      Arduíno Uno                                                        & R\$ 73,78        & R\$ 92,27			      & R\$ 42,99                                                          \\ \hline
+      Placa de Fenolite                                                  & R\$ 7,72         & R\$ 7,90                        & R\$ 2,82                                                           \\ \hline
+      Acelerômetro ADXL345                                               & R\$ 17,00        & R\$ 15,00			      & R\$ 22,00                                                          \\ \hline
+      BMP180                                                             & R\$ 15,53        & R\$ 11,21		              & R\$ 9,11                                                           \\ \hline
+      Waveshare OV5647 Night Vision                                      & R\$ 114,56       & R\$ 107,19	              & R\$ 102,62                                               \\ \hline
+      Aweek 850nm                                                        & R\$ 96,11        & R\$ 133,49		      & R\$ 129,31                                               \\ \hline
+      Antena Wiriless Omini                                              & R\$ 26,86        & R\$ 27,42		              & R\$ 27,00                                                          \\ \hline
+      HMC5883L Magnetômetro                                              & R\$ 9,15         & R\$ 9,62 			      & R\$ 11,64                                                  \\ \hline
+      Motor de Passo                                                     & R\$ 359,00       & R\$ 449,99		      & R\$ 427,99                                                         \\ \hline
+      Inter Galileo Gen 2                                                & R\$ 184,92       & R\$ 221,90		      & R\$ 242,91                                                 \\ \hline
+    \end{tabular}
+    \label{tab:CompCusto}
+  \end{table}
+
+
+
+		  A escolha dos fornecedores foi realizada visando maior viabilidade ao projeto. Na Tabela \ref{tab:pesoCustoComp} abaixo, está o levantamento do peso, do consumo energético e dos preços
+		  dos componentes da Eletrônica Embarcada escolhidos após a análise dos fornecedores.
+
+  \begin{table}[H]
+    \scalefont{0.9}
+    \centering
+    \caption{Peso, consumo e custo dos componentes da \textit{payload}.}
+    \begin{tabular}{|c|c|c|c|}
+      \hline
+      \cellcolor[HTML]{FFFFFF}{\color[HTML]{000000} \textbf{Componente}} & \textbf{Peso(g)} & \textbf{Consumo Energético (W)} & \cellcolor[HTML]{FFFFFF}{\color[HTML]{000000} \textbf{Preço(R\$)}} \\ \hline
+      Sensor LM35                                                        & 5                & 280$\mu$			      & R\$ 7,50                                                           \\ \hline
+      Giroscópio L3G4200D                                                & 5                & 15$\mu$		              & R\$ 99,90                                                          \\ \hline
+      Sensor DHT11                                                       & 15               & 7.5m			      & R\$ 12,90                                                          \\ \hline
+      Raspbarry PI                                                       & 45               & 10			      & \$ 32,64= R\$ 127,28                                               \\ \hline
+      Arduíno Uno                                                        & 28               & 6				      & R\$ 42,99                                                          \\ \hline
+      Cabos e Fios                                                       & 4000             & Não se aplica 		      & R\$ 40,00                                                          \\ \hline
+      Placa de Fenolite                                                  & 31,3             & Não se aplica                   & R\$ 2,82                                                           \\ \hline
+      Acelerômetro ADXL345                                               & 16               & 350$\mu$			      & R\$ 75,00                                                          \\ \hline
+      BMP180                                                             & 1,2              & 330$\mu$			      & R\$ 9,11                                                           \\ \hline
+      Waveshare OV5647 Night Vision                                      & 170              & 3		                      & \$ 30,99= R\$ 124,75                                                 \\ \hline
+      Aweek 850nm                                                        & 500g             & 15			      & \$ 27,88 = R\$ 108,72                                                \\ \hline
+      Reaction Wheels                                                    & -----            & 28  			      & -----                                                              \\ \hline
+      Antena Wiriless Omini                                              & 70               & Não se aplica		      & R\$ 27,00                                                          \\ \hline
+      HMC5883L Magnetômetro                                              & 1,2              & 250$\mu$				      & R\$ 42,32                                                  \\ \hline
+      Motor de Passo                                                     & 1200             & 9			   	      & R\$ 359,00                                                         \\ \hline
+      Inter Galileo Gen 2                                                & 340              & 15			      & \$104,49= R\$ 407,48                                                 \\ \hline
+      \rowcolor[HTML]{9B9B9B}
+      \textbf{Total}                                                     & \textbf{6426,5}  & 86.33			      & \textbf{R\$ 1477,66}                                               \\ \hline
+    \end{tabular}
+    \label{tab:pesoCustoComp}
+  \end{table}
+
+
+  \textbf{Observação}: Esse levantamento é por balão, sendo que este conterá apenas uma câmera. Para os balões que conterão duas câmeras, será necessário a inclusão de um Raspberry PI
+  e um painel de LEDs IR, o Aweek. Logo, o valor estipulado para os balões que contém duas câmeras é de R\$ 1461,10. Além disso, o Reaction Wheel não tem nenhuma característica divulgada,
+  pois os valores só são informados depois que é feito um orçamento. Optando-se pela montagem do Reaction Wheel, é perceptível que não foi possível se encontrar um orçamento preciso ou mais
+  de um orçamento para alguns dos componentes. Isso ocorreu devido a fatores relacionados a parâmetros  do equipamento que demandam pesquisa científica tais como momento de inércia, e também
+  escassez de fornecedores. Os valores obtidos em dólares foram convertidos no dia 29/10/2015, quando \$ 1 = R\$ 3.8997.
+
+% subsection peso_e_cuso (end)
